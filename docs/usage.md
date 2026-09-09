@@ -79,6 +79,16 @@ for a `Provides` entry with that name.
 levels above its `.pc` file. `--prefix-variable=NAME` changes which variable is
 redefined.
 
+## Symlinked package files
+
+When a `.pc` file is a symlink, `pcfiledir` is computed from the link target
+joined to the link's directory, without canonicalisation, matching pkgconf.
+
+## Drop-in use
+
+`make install PKG_CONFIG_SYMLINK=1` additionally installs a `pkg-config`
+symlink. Build systems that shell out to `pkg-config` then use pkgconfu.
+
 ## Scope
 
 Implemented:
@@ -88,16 +98,16 @@ Implemented:
 - `--cflags`, `--libs` and their filtered variants, `--static`, `--msvc-syntax`
 - `--modversion`, `--exists`, `--variable`, `--print-variables`
 - `--print-requires`, `--print-requires-private`, `--print-provides`
-- `--validate`, `--list-all`
+- `--validate`, `--path`, `--list-all`
 - version constraints and `--atleast-version` / `--exact-version` /
   `--max-version` / `--atleast-pkgconfig-version`
 - `--with-path`, `--maximum-traverse-depth`, `--keep-system-cflags`,
   `--keep-system-libs`, `--define-prefix`, `--prefix-variable`
 - `PKG_CONFIG_SYSROOT_DIR`, `PKG_CONFIG_SYSTEM_INCLUDE_PATH`,
   `PKG_CONFIG_SYSTEM_LIBRARY_PATH`, `PKG_CONFIG_DISABLE_UNINSTALLED`
-- `*-uninstalled.pc` files
-
+- `*-uninstalled.pc` files and `.pc` files reached through symlinks
 - `pkg-config` and `pkgconf` as built-in virtual packages
+- pkg-config compatible error message wording
 
 Not yet implemented, planned for later releases:
 

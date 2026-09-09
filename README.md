@@ -30,11 +30,18 @@ make install PREFIX=/usr DESTDIR=/tmp/stage
 `PREFIX` defaults to `/usr/local`. The binary goes to `$(PREFIX)/bin` and the
 man page to `$(PREFIX)/share/man/man1`.
 
-The default `.pc` search path is compiled in and can be overridden at build
-time:
+The default `.pc` search path and the system include/library directories are
+compiled in and can be overridden at build time:
 
 ```
-make PKGCONFU_DEFAULT_PATH=/usr/lib/pkgconfig:/usr/share/pkgconfig
+make PKGCONFU_DEFAULT_PATH=/usr/lib/pkgconfig:/usr/share/pkgconfig \
+     PKGCONFU_SYSTEM_LIBRARY_PATH=/usr/lib:/usr/lib64
+```
+
+To also install a `pkg-config` symlink pointing at `pkgconfu`:
+
+```
+make install PKG_CONFIG_SYMLINK=1
 ```
 
 ## Usage
@@ -54,21 +61,21 @@ Implemented: `.pc` parsing and variable substitution, `--define-variable`,
 `--cflags` and `--libs` with their filtered variants, `--static`,
 `--msvc-syntax`, `--modversion`, `--exists`, `--variable`, `--print-variables`,
 `--print-requires`, `--print-requires-private`, `--print-provides`,
-`--validate`, `--list-all`, version constraints, `--with-path`,
+`--validate`, `--path`, `--list-all`, version constraints, `--with-path`,
 `--maximum-traverse-depth`, `--keep-system-cflags` / `--keep-system-libs`,
-`--define-prefix` / `--prefix-variable`, `*-uninstalled.pc` files,
+`--define-prefix` / `--prefix-variable`, `*-uninstalled.pc` files, `.pc`
+symlink resolution, `pkg-config` and `pkgconf` virtual packages,
 `PKG_CONFIG_SYSROOT_DIR` prefixing with `pc_sysrootdir`, and configurable
-system flag stripping.
+system flag stripping. Error messages match pkg-config wording.
 
 Flag ordering and deduplication follow pkgconf. Across the package files
 installed on a typical desktop system, `--cflags --libs` output matches the
 system `pkg-config` byte-for-byte for about 99 percent of packages; the
-remaining cases involve deduplication corner cases and `.pc` files reached
-through symlinks.
+remaining cases involve deduplication corner cases (`-l` after `-Wl,`
+fragments, self-requiring packages).
 
-Not yet covered: `Provides` version ranges and renames, `.pc` symlink
-resolution for `pcfiledir`, and full `pc_top_builddir` handling. These are
-planned for later releases.
+Not yet covered: `Provides` version ranges and renames, and full
+`pc_top_builddir` handling. These are planned for later releases.
 
 ## Acknowledgments
 
