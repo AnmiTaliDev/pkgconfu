@@ -1,0 +1,8 @@
+prefix=/opt/provider
+libdir=${prefix}/lib
+
+Name: provider
+Description: Provides a virtual module
+Version: 2.0.0
+Provides: virtual-thing = 1.2.3
+Libs: -L${libdir} -lprovider

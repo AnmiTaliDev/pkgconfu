@@ -26,9 +26,17 @@ typedef struct {
 	strlist defines;
 	char *sysroot;
 	int max_depth;
+	bool disable_uninstalled;
+	bool define_prefix;
+	const char *prefix_var;
 	package **loaded;
 	size_t nloaded;
 	size_t loadcap;
+	bool provides_indexed;
+	strlist alias_name;
+	package **alias_pkg;
+	size_t nalias;
+	size_t aliascap;
 	strbuf errors;
 } pkg_ctx;
 

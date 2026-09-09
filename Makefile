@@ -1,5 +1,5 @@
 PROJECT   = pkgconfu
-VERSION   = 0.2.0
+VERSION   = 0.3.0
 
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin

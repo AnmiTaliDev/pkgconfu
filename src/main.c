@@ -8,7 +8,7 @@
 #include "util.h"
 
 #ifndef PKGCONFU_VERSION
-#define PKGCONFU_VERSION "0.2.0"
+#define PKGCONFU_VERSION "0.3.0"
 #endif
 #define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
 
@@ -38,6 +38,9 @@ typedef struct {
 	bool version;
 	bool keep_system_cflags;
 	bool keep_system_libs;
+	bool msvc_syntax;
+	int define_prefix;
+	const char *prefix_variable;
 	const char *variable;
 	const char *atleast_version;
 	const char *exact_version;
@@ -76,6 +79,10 @@ static void usage(FILE *f)
 		"  --maximum-traverse-depth=N    limit dependency recursion depth\n"
 		"  --keep-system-cflags          keep -I/usr/include\n"
 		"  --keep-system-libs            keep -L/usr/lib\n"
+		"  --define-prefix               redefine prefix from the .pc location\n"
+		"  --dont-define-prefix          do not redefine prefix\n"
+		"  --prefix-variable=NAME        variable redefined by --define-prefix\n"
+		"  --msvc-syntax                 output flags in MSVC form\n"
 		"  --atleast-version=VERSION     require at least this version\n"
 		"  --exact-version=VERSION       require exactly this version\n"
 		"  --max-version=VERSION         require at most this version\n"
@@ -149,12 +156,40 @@ static bool pass_filter(const char *t, enum out_filter f)
 	return true;
 }
 
-static bool is_system_flag(const char *t, bool libs)
+static bool is_system_flag(const char *t, const strlist *sysdirs)
 {
-	if (libs)
-		return strcmp(t, "-L/usr/lib") == 0 ||
-		       strcmp(t, "-L/usr/lib64") == 0;
-	return strcmp(t, "-I/usr/include") == 0;
+	if (t[0] != '-' || (t[1] != 'I' && t[1] != 'L') || !t[2])
+		return false;
+	for (size_t i = 0; i < sysdirs->len; i++)
+		if (strcmp(t + 2, sysdirs->items[i]) == 0)
+			return true;
+	return false;
+}
+
+static void split_colon_list(const char *s, strlist *out)
+{
+	while (*s) {
+		const char *sep = strchr(s, ':');
+		size_t n = sep ? (size_t)(sep - s) : strlen(s);
+		if (n)
+			strlist_push_owned(out, xstrndup(s, n));
+		if (!sep)
+			break;
+		s = sep + 1;
+	}
+}
+
+static char *to_msvc(const char *t)
+{
+	if (str_has_prefix(t, "-I"))
+		return xasprintf("/I%s", t + 2);
+	if (str_has_prefix(t, "-L"))
+		return xasprintf("/libpath:%s", t + 2);
+	if (str_has_prefix(t, "-l"))
+		return xasprintf("%s.lib", t + 2);
+	if (str_has_prefix(t, "-D"))
+		return xasprintf("/D%s", t + 2);
+	return xstrdup(t);
 }
 
 static char *apply_sysroot(const char *t, const char *sysroot)
@@ -171,7 +206,7 @@ static char *apply_sysroot(const char *t, const char *sysroot)
 
 static void collect(const pkglist *pkgs, bool libs, bool static_mode,
 		    enum out_filter filter, const char *sysroot,
-		    bool keep_system, strlist *out)
+		    bool keep_system, const strlist *sysdirs, strlist *out)
 {
 	strlist raw;
 	strlist_init(&raw);
@@ -199,7 +234,7 @@ static void collect(const pkglist *pkgs, bool libs, bool static_mode,
 		if (!pass_filter(t, filter))
 			continue;
 		char *v = apply_sysroot(t, sysroot);
-		if (!keep_system && is_system_flag(v, libs)) {
+		if (!keep_system && is_system_flag(v, sysdirs)) {
 			free(v);
 			continue;
 		}
@@ -359,6 +394,14 @@ int main(int argc, char **argv)
 			o.keep_system_cflags = true;
 		else if (strcmp(a, "--keep-system-libs") == 0)
 			o.keep_system_libs = true;
+		else if (strcmp(a, "--define-prefix") == 0)
+			o.define_prefix = 1;
+		else if (strcmp(a, "--dont-define-prefix") == 0)
+			o.define_prefix = -1;
+		else if (strcmp(a, "--msvc-syntax") == 0)
+			o.msvc_syntax = true;
+		else if (str_has_prefix(a, "--prefix-variable=") && eq)
+			o.prefix_variable = eq + 1;
 		else if (strcmp(a, "--print-errors") == 0)
 			o.print_errors = true;
 		else if (strcmp(a, "--silence-errors") == 0)
@@ -412,6 +455,13 @@ int main(int argc, char **argv)
 	pkg_ctx ctx;
 	pkg_ctx_init(&ctx);
 	ctx.max_depth = max_depth;
+	ctx.disable_uninstalled = getenv("PKG_CONFIG_DISABLE_UNINSTALLED") !=
+				 nullptr;
+	ctx.define_prefix = o.define_prefix > 0 ||
+			    (o.define_prefix == 0 &&
+			     getenv("PKG_CONFIG_RELOCATE_PATHS") != nullptr);
+	if (o.prefix_variable)
+		ctx.prefix_var = o.prefix_variable;
 	const char *sysroot = getenv("PKG_CONFIG_SYSROOT_DIR");
 	if (sysroot && *sysroot) {
 		size_t n = strlen(sysroot);
@@ -435,6 +485,13 @@ int main(int argc, char **argv)
 			   getenv("PKG_CONFIG_ALLOW_SYSTEM_CFLAGS");
 	bool keep_libs = o.keep_system_libs ||
 			 getenv("PKG_CONFIG_ALLOW_SYSTEM_LIBS");
+
+	strlist sys_inc = { 0 };
+	strlist sys_lib = { 0 };
+	const char *ei = getenv("PKG_CONFIG_SYSTEM_INCLUDE_PATH");
+	const char *el = getenv("PKG_CONFIG_SYSTEM_LIBRARY_PATH");
+	split_colon_list(ei && *ei ? ei : "/usr/include", &sys_inc);
+	split_colon_list(el && *el ? el : "/usr/lib:/usr/lib64", &sys_lib);
 
 	bool check_only = o.exists || o.atleast_version || o.exact_version ||
 			  o.max_version;
@@ -604,7 +661,7 @@ int main(int argc, char **argv)
 		strlist_init(&outl);
 		if (o.cflags)
 			collect(&pk, false, o.static_mode, o.cflags_filter,
-				ctx.sysroot, keep_cflags, &outc);
+				ctx.sysroot, keep_cflags, &sys_inc, &outc);
 		if (o.libs) {
 			pkglist lv = { 0 };
 			for (size_t i = 0; i < pk.len; i++)
@@ -612,15 +669,21 @@ int main(int argc, char **argv)
 					pkglist_append(&lv, pk.items[i],
 						       pk.pub[i]);
 			collect(&lv, true, o.static_mode, o.libs_filter,
-				ctx.sysroot, keep_libs, &outl);
+				ctx.sysroot, keep_libs, &sys_lib, &outl);
 			pkglist_free(&lv);
 		}
 		strlist joined;
 		strlist_init(&joined);
 		for (size_t i = 0; i < outc.len; i++)
-			strlist_push(&joined, outc.items[i]);
+			strlist_push_owned(&joined,
+					   o.msvc_syntax
+						   ? to_msvc(outc.items[i])
+						   : xstrdup(outc.items[i]));
 		for (size_t i = 0; i < outl.len; i++)
-			strlist_push(&joined, outl.items[i]);
+			strlist_push_owned(&joined,
+					   o.msvc_syntax
+						   ? to_msvc(outl.items[i])
+						   : xstrdup(outl.items[i]));
 		emit(&joined);
 		strlist_free(&joined);
 		strlist_free(&outc);
@@ -631,6 +694,8 @@ int main(int argc, char **argv)
 	pkg_deps_free(roots, nroots);
 
 done:
+	strlist_free(&sys_inc);
+	strlist_free(&sys_lib);
 	strbuf_free(&reqbuf);
 	pkg_ctx_free(&ctx);
 	return ret;

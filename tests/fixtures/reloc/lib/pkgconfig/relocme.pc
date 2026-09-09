@@ -1,0 +1,9 @@
+prefix=/nonexistent/original
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: relocme
+Description: Package for testing prefix relocation
+Version: 1.0.0
+Libs: -L${libdir} -lrelocme
+Cflags: -I${includedir}

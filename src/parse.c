@@ -99,10 +99,28 @@ static void append_field(char **field, const char *value)
 	*field = merged;
 }
 
-package *package_parse_file(const char *path, const char *key,
-			   const strlist *defines, const char *sysroot,
-			   strbuf *err)
+static char *reloc_prefix(const char *pcfiledir)
 {
+	char *dir = xstrdup(pcfiledir);
+	char *slash = strrchr(dir, '/');
+	if (slash && strcmp(slash + 1, "pkgconfig") == 0) {
+		*slash = '\0';
+		slash = strrchr(dir, '/');
+		if (slash && slash != dir)
+			*slash = '\0';
+	}
+	return dir;
+}
+
+package *package_parse_file(const char *path, const char *key,
+			   const parse_opts *opts, strbuf *err)
+{
+	const strlist *defines = opts ? opts->defines : nullptr;
+	const char *sysroot = opts ? opts->sysroot : nullptr;
+	const char *prefix_var = opts && opts->prefix_var ? opts->prefix_var
+							 : "prefix";
+	bool define_prefix = opts && opts->define_prefix;
+
 	FILE *f = fopen(path, "r");
 	if (!f) {
 		if (err)
@@ -117,13 +135,15 @@ package *package_parse_file(const char *path, const char *key,
 
 	char *pcfiledir = dir_of(path);
 	set_var(p, "pcfiledir", xstrdup(pcfiledir));
-	free(pcfiledir);
 	set_var(p, "pc_sysrootdir",
 		xstrdup(sysroot && *sysroot ? sysroot : "/"));
 	set_var(p, "pc_top_builddir",
 		xstrdup(getenv("PKG_CONFIG_TOP_BUILD_DIR")
 				? getenv("PKG_CONFIG_TOP_BUILD_DIR")
 				: "$(top_builddir)"));
+
+	char *reloc = define_prefix ? reloc_prefix(pcfiledir) : nullptr;
+	free(pcfiledir);
 
 	char *line = nullptr;
 	size_t cap = 0;
@@ -158,6 +178,10 @@ package *package_parse_file(const char *path, const char *key,
 		char *sub = substitute(p, defines, value);
 
 		if (delim == '=') {
+			if (reloc && strcmp(name, prefix_var) == 0) {
+				free(sub);
+				sub = xstrdup(reloc);
+			}
 			set_var(p, name, sub);
 			continue;
 		}
@@ -192,6 +216,7 @@ package *package_parse_file(const char *path, const char *key,
 	}
 
 	free(line);
+	free(reloc);
 	fclose(f);
 	return p;
 }
