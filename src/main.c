@@ -8,7 +8,7 @@
 #include "util.h"
 
 #ifndef PKGCONFU_VERSION
-#define PKGCONFU_VERSION "0.4.0"
+#define PKGCONFU_VERSION "0.5.0"
 #endif
 #define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
 
