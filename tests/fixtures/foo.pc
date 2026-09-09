@@ -1,0 +1,11 @@
+prefix=/opt/foo
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: foo
+Description: Foo library
+Version: 1.4.2
+Requires: bar >= 2.0
+Libs: -L${libdir} -lfoo
+Cflags: -I${includedir}

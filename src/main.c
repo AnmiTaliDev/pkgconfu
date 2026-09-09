@@ -8,7 +8,7 @@
 #include "util.h"
 
 #ifndef PKGCONFU_VERSION
-#define PKGCONFU_VERSION "0.1.0"
+#define PKGCONFU_VERSION "0.2.0"
 #endif
 #define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
 
@@ -29,9 +29,15 @@ typedef struct {
 	bool exists;
 	bool static_mode;
 	bool print_variables;
+	bool print_requires;
+	bool print_requires_private;
+	bool print_provides;
+	bool validate;
 	bool list_all;
 	bool help;
 	bool version;
+	bool keep_system_cflags;
+	bool keep_system_libs;
 	const char *variable;
 	const char *atleast_version;
 	const char *exact_version;
@@ -61,7 +67,15 @@ static void usage(FILE *f)
 		"  --variable=NAME               print value of a variable\n"
 		"  --define-variable=NAME=VALUE  set a variable\n"
 		"  --print-variables             list defined variables\n"
+		"  --print-requires              list Requires entries\n"
+		"  --print-requires-private      list Requires.private entries\n"
+		"  --print-provides              list what the packages provide\n"
+		"  --validate                    check package files for problems\n"
 		"  --list-all                    list all known packages\n"
+		"  --with-path=DIR               prepend DIR to the search path\n"
+		"  --maximum-traverse-depth=N    limit dependency recursion depth\n"
+		"  --keep-system-cflags          keep -I/usr/include\n"
+		"  --keep-system-libs            keep -L/usr/lib\n"
 		"  --atleast-version=VERSION     require at least this version\n"
 		"  --exact-version=VERSION       require exactly this version\n"
 		"  --max-version=VERSION         require at most this version\n"
@@ -143,12 +157,22 @@ static bool is_system_flag(const char *t, bool libs)
 	return strcmp(t, "-I/usr/include") == 0;
 }
 
-static void collect(const pkglist *pkgs, bool libs, bool static_mode,
-		    enum out_filter filter, strlist *out)
+static char *apply_sysroot(const char *t, const char *sysroot)
 {
-	bool allow_system = getenv(libs ? "PKG_CONFIG_ALLOW_SYSTEM_LIBS"
-					: "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS") !=
-			    nullptr;
+	if (!sysroot || !*sysroot || strcmp(sysroot, "/") == 0)
+		return xstrdup(t);
+	if ((str_has_prefix(t, "-I") || str_has_prefix(t, "-L")) && t[2] == '/') {
+		if (str_has_prefix(t + 2, sysroot))
+			return xstrdup(t);
+		return xasprintf("-%c%s%s", t[1], sysroot, t + 2);
+	}
+	return xstrdup(t);
+}
+
+static void collect(const pkglist *pkgs, bool libs, bool static_mode,
+		    enum out_filter filter, const char *sysroot,
+		    bool keep_system, strlist *out)
+{
 	strlist raw;
 	strlist_init(&raw);
 	for (size_t i = 0; i < pkgs->len; i++) {
@@ -158,8 +182,11 @@ static void collect(const pkglist *pkgs, bool libs, bool static_mode,
 				shell_split(p->libs, &raw);
 			if (static_mode && p->libs_private)
 				shell_split(p->libs_private, &raw);
-		} else if (p->cflags) {
-			shell_split(p->cflags, &raw);
+		} else {
+			if (p->cflags)
+				shell_split(p->cflags, &raw);
+			if (static_mode && p->cflags_private)
+				shell_split(p->cflags_private, &raw);
 		}
 	}
 
@@ -171,20 +198,61 @@ static void collect(const pkglist *pkgs, bool libs, bool static_mode,
 		const char *t = norm.items[i];
 		if (!pass_filter(t, filter))
 			continue;
-		if (!allow_system && is_system_flag(t, libs))
+		char *v = apply_sysroot(t, sysroot);
+		if (!keep_system && is_system_flag(v, libs)) {
+			free(v);
 			continue;
-		if (str_has_prefix(t, "-l")) {
-			long at = strlist_index(out, t);
+		}
+		if (str_has_prefix(v, "-I") || str_has_prefix(v, "-L")) {
+			if (strlist_contains(out, v))
+				free(v);
+			else
+				strlist_push_owned(out, v);
+		} else {
+			long at = strlist_index(out, v);
 			if (at >= 0)
 				strlist_remove_at(out, (size_t)at);
-			strlist_push(out, t);
-		} else if (!strlist_contains(out, t)) {
-			strlist_push(out, t);
+			strlist_push_owned(out, v);
 		}
 	}
 
 	strlist_free(&raw);
 	strlist_free(&norm);
+}
+
+static void print_dep_list(const char *s)
+{
+	pkg_dep *d;
+	size_t n = pkg_parse_deps(s, &d);
+	for (size_t i = 0; i < n; i++) {
+		if (d[i].op == CMP_ANY)
+			puts(d[i].name);
+		else
+			printf("%s %s %s\n", d[i].name, pkg_op_name(d[i].op),
+			       d[i].version ? d[i].version : "");
+	}
+	pkg_deps_free(d, n);
+}
+
+static int validate_pkg(const package *p)
+{
+	int bad = 0;
+	if (!p->name || !*p->name) {
+		fprintf(stderr, "%s: missing Name\n", p->key);
+		bad = 1;
+	}
+	if (!p->description)
+		fprintf(stderr, "%s: missing Description\n", p->key);
+	if (!p->version || !*p->version) {
+		fprintf(stderr, "%s: missing Version\n", p->key);
+		bad = 1;
+	}
+	for (size_t i = 0; i < p->unresolved.len; i++) {
+		fprintf(stderr, "%s: undefined variable '%s'\n", p->key,
+			p->unresolved.items[i]);
+		bad = 1;
+	}
+	return bad;
 }
 
 static int cmp_rows(const void *a, const void *b)
@@ -241,9 +309,12 @@ int main(int argc, char **argv)
 {
 	options o = { 0 };
 	strlist defines;
+	strlist with_paths;
 	strlist_init(&defines);
+	strlist_init(&with_paths);
 	strbuf reqbuf;
 	strbuf_init(&reqbuf);
+	int max_depth = 0;
 
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
@@ -274,8 +345,20 @@ int main(int argc, char **argv)
 			o.static_mode = true;
 		else if (strcmp(a, "--print-variables") == 0)
 			o.print_variables = true;
+		else if (strcmp(a, "--print-requires") == 0)
+			o.print_requires = true;
+		else if (strcmp(a, "--print-requires-private") == 0)
+			o.print_requires_private = true;
+		else if (strcmp(a, "--print-provides") == 0)
+			o.print_provides = true;
+		else if (strcmp(a, "--validate") == 0)
+			o.validate = true;
 		else if (strcmp(a, "--list-all") == 0)
 			o.list_all = true;
+		else if (strcmp(a, "--keep-system-cflags") == 0)
+			o.keep_system_cflags = true;
+		else if (strcmp(a, "--keep-system-libs") == 0)
+			o.keep_system_libs = true;
 		else if (strcmp(a, "--print-errors") == 0)
 			o.print_errors = true;
 		else if (strcmp(a, "--silence-errors") == 0)
@@ -286,6 +369,10 @@ int main(int argc, char **argv)
 			o.variable = eq + 1;
 		else if (str_has_prefix(a, "--define-variable=") && eq)
 			strlist_push(&defines, eq + 1);
+		else if (str_has_prefix(a, "--with-path=") && eq)
+			strlist_push(&with_paths, eq + 1);
+		else if (str_has_prefix(a, "--maximum-traverse-depth=") && eq)
+			max_depth = atoi(eq + 1);
 		else if (str_has_prefix(a, "--atleast-version=") && eq)
 			o.atleast_version = eq + 1;
 		else if (str_has_prefix(a, "--exact-version=") && eq)
@@ -297,6 +384,7 @@ int main(int argc, char **argv)
 		else if (str_has_prefix(a, "--")) {
 			fprintf(stderr, "pkgconfu: unknown option '%s'\n", a);
 			strlist_free(&defines);
+			strlist_free(&with_paths);
 			strbuf_free(&reqbuf);
 			return 1;
 		} else {
@@ -309,26 +397,44 @@ int main(int argc, char **argv)
 	if (o.help) {
 		usage(stdout);
 		strlist_free(&defines);
+		strlist_free(&with_paths);
 		strbuf_free(&reqbuf);
 		return 0;
 	}
 	if (o.version) {
 		puts(PKGCONFU_VERSION);
 		strlist_free(&defines);
+		strlist_free(&with_paths);
 		strbuf_free(&reqbuf);
 		return 0;
 	}
 
 	pkg_ctx ctx;
 	pkg_ctx_init(&ctx);
+	ctx.max_depth = max_depth;
+	const char *sysroot = getenv("PKG_CONFIG_SYSROOT_DIR");
+	if (sysroot && *sysroot) {
+		size_t n = strlen(sysroot);
+		while (n > 1 && sysroot[n - 1] == '/')
+			n--;
+		ctx.sysroot = xstrndup(sysroot, n);
+	}
 	for (size_t i = 0; i < defines.len; i++)
 		strlist_push(&ctx.defines, defines.items[i]);
 	strlist_free(&defines);
 
+	for (size_t i = 0; i < with_paths.len; i++)
+		pkg_add_path_list(&ctx, with_paths.items[i]);
+	strlist_free(&with_paths);
 	const char *env_path = getenv("PKG_CONFIG_PATH");
 	if (env_path && *env_path)
 		pkg_add_path_list(&ctx, env_path);
 	pkg_default_paths(&ctx);
+
+	bool keep_cflags = o.keep_system_cflags ||
+			   getenv("PKG_CONFIG_ALLOW_SYSTEM_CFLAGS");
+	bool keep_libs = o.keep_system_libs ||
+			 getenv("PKG_CONFIG_ALLOW_SYSTEM_LIBS");
 
 	bool check_only = o.exists || o.atleast_version || o.exact_version ||
 			  o.max_version;
@@ -378,19 +484,18 @@ int main(int argc, char **argv)
 		}
 	}
 
-	pkglist libs_pk = { 0 };
-	pkglist cflags_pk = { 0 };
+	pkglist pk = { 0 };
 	int rc = 0;
 
-	bool simple_action = o.modversion || o.variable || o.print_variables;
-	bool need_closure = check_only ||
-			    (!o.cflags && !o.libs && !simple_action);
+	bool simple_action = o.modversion || o.variable || o.print_variables ||
+			     o.print_requires || o.print_requires_private ||
+			     o.print_provides || o.validate;
+	bool need_closure = check_only || o.cflags || o.libs ||
+			    (!simple_action);
 
-	if (need_closure) {
-		pkglist tmp = { 0 };
-		rc |= pkg_closure(&ctx, roots, nroots, true, &tmp);
-		pkglist_free(&tmp);
-	}
+	if (need_closure)
+		rc |= pkg_closure(&ctx, roots, nroots, &pk);
+
 	if (simple_action) {
 		for (size_t i = 0; i < nroots; i++) {
 			package *p = pkg_load(&ctx, roots[i].name);
@@ -414,25 +519,54 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	if (o.cflags)
-		rc |= pkg_closure(&ctx, roots, nroots, true, &cflags_pk);
-	if (o.libs)
-		rc |= pkg_closure(&ctx, roots, nroots, o.static_mode, &libs_pk);
-
 	if (rc != 0) {
 		if (show_errors)
 			fputs(ctx.errors.data, errf);
 		ret = 1;
-		pkglist_free(&libs_pk);
-		pkglist_free(&cflags_pk);
+		pkglist_free(&pk);
 		pkg_deps_free(roots, nroots);
 		goto done;
+	}
+
+	if (o.validate) {
+		for (size_t i = 0; i < nroots; i++) {
+			package *p = pkg_load(&ctx, roots[i].name);
+			if (p && validate_pkg(p))
+				ret = 1;
+		}
 	}
 
 	if (o.modversion) {
 		for (size_t i = 0; i < nroots; i++) {
 			package *p = pkg_load(&ctx, roots[i].name);
 			puts(p && p->version ? p->version : "");
+		}
+	}
+
+	if (o.print_provides) {
+		for (size_t i = 0; i < nroots; i++) {
+			package *p = pkg_load(&ctx, roots[i].name);
+			if (!p)
+				continue;
+			printf("%s = %s\n", p->key,
+			       p->version ? p->version : "");
+			print_dep_list(p->provides_str);
+		}
+	}
+
+	if (o.print_requires) {
+		for (size_t i = 0; i < nroots; i++) {
+			package *p = pkg_load(&ctx, roots[i].name);
+			if (p)
+				print_dep_list(p->requires_str);
+		}
+	}
+
+	if (o.print_requires_private) {
+		for (size_t i = 0; i < nroots; i++) {
+			package *p = pkg_load(&ctx, roots[i].name);
+			if (p)
+				print_dep_list(p->requires_private_str);
 		}
 	}
 
@@ -464,20 +598,36 @@ int main(int argc, char **argv)
 	}
 
 	if (o.cflags || o.libs) {
-		strlist out;
-		strlist_init(&out);
+		strlist outc;
+		strlist outl;
+		strlist_init(&outc);
+		strlist_init(&outl);
 		if (o.cflags)
-			collect(&cflags_pk, false, false, o.cflags_filter,
-				&out);
-		if (o.libs)
-			collect(&libs_pk, true, o.static_mode, o.libs_filter,
-				&out);
-		emit(&out);
-		strlist_free(&out);
+			collect(&pk, false, o.static_mode, o.cflags_filter,
+				ctx.sysroot, keep_cflags, &outc);
+		if (o.libs) {
+			pkglist lv = { 0 };
+			for (size_t i = 0; i < pk.len; i++)
+				if (pk.pub[i] || o.static_mode)
+					pkglist_append(&lv, pk.items[i],
+						       pk.pub[i]);
+			collect(&lv, true, o.static_mode, o.libs_filter,
+				ctx.sysroot, keep_libs, &outl);
+			pkglist_free(&lv);
+		}
+		strlist joined;
+		strlist_init(&joined);
+		for (size_t i = 0; i < outc.len; i++)
+			strlist_push(&joined, outc.items[i]);
+		for (size_t i = 0; i < outl.len; i++)
+			strlist_push(&joined, outl.items[i]);
+		emit(&joined);
+		strlist_free(&joined);
+		strlist_free(&outc);
+		strlist_free(&outl);
 	}
 
-	pkglist_free(&libs_pk);
-	pkglist_free(&cflags_pk);
+	pkglist_free(&pk);
 	pkg_deps_free(roots, nroots);
 
 done:

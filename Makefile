@@ -1,5 +1,5 @@
 PROJECT   = pkgconfu
-VERSION   = 0.1.0
+VERSION   = 0.2.0
 
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin
@@ -46,7 +46,10 @@ uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
 	rm -f $(DESTDIR)$(MANDIR)/man1/$(PROJECT).1
 
+check: $(BIN)
+	sh tests/run.sh ./$(BIN)
+
 clean:
 	rm -f $(OBJ) $(BIN)
 
-.PHONY: all install uninstall clean
+.PHONY: all install uninstall check clean

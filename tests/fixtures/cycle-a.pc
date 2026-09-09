@@ -1,0 +1,5 @@
+Name: cycle-a
+Description: Cyclic dependency A
+Version: 1.0.0
+Requires: cycle-b
+Libs: -lcycle-a

@@ -1,0 +1,9 @@
+prefix=/usr
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: sysroot-lib
+Description: Library used to exercise sysroot rewriting
+Version: 3.0.0
+Libs: -L${libdir} -lsysroot
+Cflags: -I${includedir}/sysroot

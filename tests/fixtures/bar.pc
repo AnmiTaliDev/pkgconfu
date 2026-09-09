@@ -1,0 +1,12 @@
+prefix=/opt/bar
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: bar
+Description: Bar library
+Version: 2.3.0
+Requires.private: baz
+Libs: -L${libdir} -lbar
+Libs.private: -lm
+Cflags: -I${includedir}
+Cflags.private: -DBAR_STATIC

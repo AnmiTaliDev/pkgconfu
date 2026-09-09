@@ -19,20 +19,25 @@ typedef struct package {
 	char *url;
 
 	char *cflags;
+	char *cflags_private;
 	char *libs;
 	char *libs_private;
 
 	char *requires_str;
 	char *requires_private_str;
 	char *conflicts_str;
+	char *provides_str;
 
 	pkg_var *vars;
 	size_t nvars;
 	size_t varcap;
+
+	strlist unresolved;
 } package;
 
 package *package_parse_file(const char *path, const char *key,
-			   const strlist *defines, strbuf *err);
+			   const strlist *defines, const char *sysroot,
+			   strbuf *err);
 void package_free(package *p);
 const char *package_get_var(const package *p, const char *name);
 
