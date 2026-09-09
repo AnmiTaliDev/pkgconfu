@@ -148,17 +148,41 @@ package *package_parse_file(const char *path, const char *key,
 	char *line = nullptr;
 	size_t cap = 0;
 	ssize_t n;
+	strbuf logical;
+	strbuf_init(&logical);
 	while ((n = getline(&line, &cap, f)) != -1) {
 		if (n && line[n - 1] == '\n')
 			line[--n] = '\0';
 		if (n && line[n - 1] == '\r')
 			line[--n] = '\0';
 
-		char *q = line;
+		size_t bs = 0;
+		while ((ssize_t)bs < n && line[n - 1 - bs] == '\\')
+			bs++;
+		bool cont = bs % 2 == 1;
+		if (cont)
+			line[--n] = '\0';
+		strbuf_adds(&logical, line);
+		if (cont)
+			continue;
+
+		char *buf = logical.data;
+		for (char *r = buf; *r; r++) {
+			if (*r == '\\' && r[1]) {
+				r++;
+			} else if (*r == '#') {
+				*r = '\0';
+				break;
+			}
+		}
+
+		char *q = buf;
 		while (*q && isspace((unsigned char)*q))
 			q++;
-		if (*q == '\0' || *q == '#')
+		if (*q == '\0') {
+			strbuf_reset(&logical);
 			continue;
+		}
 
 		char *name = q;
 		while (*q && (isalnum((unsigned char)*q) || *q == '_' ||
@@ -168,8 +192,10 @@ package *package_parse_file(const char *path, const char *key,
 		while (*q && isspace((unsigned char)*q))
 			q++;
 		char delim = *q;
-		if (delim != ':' && delim != '=')
+		if (delim != ':' && delim != '=') {
+			strbuf_reset(&logical);
 			continue;
+		}
 		*name_end = '\0';
 		q++;
 		while (*q && isspace((unsigned char)*q))
@@ -183,6 +209,7 @@ package *package_parse_file(const char *path, const char *key,
 				sub = xstrdup(reloc);
 			}
 			set_var(p, name, sub);
+			strbuf_reset(&logical);
 			continue;
 		}
 
@@ -213,9 +240,11 @@ package *package_parse_file(const char *path, const char *key,
 		else if (strcmp(name, "Provides") == 0)
 			append_field(&p->provides_str, sub);
 		free(sub);
+		strbuf_reset(&logical);
 	}
 
 	free(line);
+	strbuf_free(&logical);
 	free(reloc);
 	fclose(f);
 	return p;
