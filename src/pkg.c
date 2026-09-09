@@ -127,6 +127,23 @@ static void alias_add(pkg_ctx *ctx, const char *name, package *p)
 	ctx->alias_pkg[ctx->nalias++] = p;
 }
 
+#ifndef PKGCONFU_PKGCONFIG_COMPAT
+#define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
+#endif
+
+static package *make_virtual(pkg_ctx *ctx, const char *name, const char *desc)
+{
+	package *p = xmalloc(sizeof(*p));
+	*p = (package){ 0 };
+	p->key = xstrdup(name);
+	p->path = xstrdup("<virtual>");
+	p->name = xstrdup(name);
+	p->description = xstrdup(desc);
+	p->version = xstrdup(PKGCONFU_PKGCONFIG_COMPAT);
+	cache_add(ctx, p);
+	return p;
+}
+
 package *pkg_load(pkg_ctx *ctx, const char *name)
 {
 	package *c = cached(ctx, name);
@@ -135,6 +152,9 @@ package *pkg_load(pkg_ctx *ctx, const char *name)
 	c = alias_get(ctx, name);
 	if (c)
 		return c;
+
+	if (strcmp(name, "pkg-config") == 0 || strcmp(name, "pkgconf") == 0)
+		return make_virtual(ctx, name, "pkgconfu");
 
 	if (!ctx->disable_uninstalled) {
 		for (size_t i = 0; i < ctx->path.len; i++) {
