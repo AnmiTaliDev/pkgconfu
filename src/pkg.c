@@ -486,13 +486,6 @@ static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
 	bool recurse = ctx->max_depth <= 0 || depth < ctx->max_depth;
 	if (recurse) {
 		pkg_dep *sub;
-		size_t nsub = pkg_parse_deps(p->requires_str, &sub);
-		for (size_t i = nsub; i-- > 0;)
-			if (visit(ctx, &sub[i], pub_path, depth + 1, out, seen,
-				  stack) != 0)
-				rc = -1;
-		pkg_deps_free(sub, nsub);
-
 		if (!already) {
 			size_t np = pkg_parse_deps(p->requires_private_str,
 						   &sub);
@@ -502,6 +495,13 @@ static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
 					rc = -1;
 			pkg_deps_free(sub, np);
 		}
+
+		size_t nsub = pkg_parse_deps(p->requires_str, &sub);
+		for (size_t i = nsub; i-- > 0;)
+			if (visit(ctx, &sub[i], pub_path, depth + 1, out, seen,
+				  stack) != 0)
+				rc = -1;
+		pkg_deps_free(sub, nsub);
 	}
 
 	strlist_remove_at(stack, stack->len - 1);
