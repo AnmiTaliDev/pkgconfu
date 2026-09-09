@@ -67,5 +67,6 @@ void pkglist_free(pkglist *l);
 void pkglist_append(pkglist *l, package *p, bool pub);
 int pkg_closure(pkg_ctx *ctx, const pkg_dep *roots, size_t nroots,
 		pkglist *out);
+void pkg_err_not_found(pkg_ctx *ctx, const char *name, const char *parent);
 
 #endif
