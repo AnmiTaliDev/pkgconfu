@@ -130,6 +130,15 @@ out_is "without define-prefix keeps original" \
 	"-I/nonexistent/original/include -L/nonexistent/original/lib -lrelocme" \
 	env PKG_CONFIG_LIBDIR=$RELOC "$BIN" --cflags --libs relocme
 
+out_is "inline comment stripped from Libs" \
+	"-L/opt/quirks/lib -lquirks -L/opt/bar/lib -lbar -L/opt/baz/lib -lbaz" \
+	"$BIN" --libs quirks
+out_is "line continuation joins Requires" "bar
+baz" "$BIN" --print-requires quirks
+out_is "trailing comment stripped from variable" "/opt/quirks/lib" \
+	"$BIN" --variable=libdir quirks
+out_is "virtual pkg-config exists" "0.29.2" "$BIN" --modversion pkg-config
+
 out_is "default system lib dir stripped" "" \
 	"$BIN" --libs-only-L sysroot-lib
 out_is "custom system lib path keeps /usr/lib" "-L/usr/lib" \

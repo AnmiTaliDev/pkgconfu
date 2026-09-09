@@ -1,0 +1,12 @@
+# leading comment line
+prefix=/opt/quirks
+libdir=${prefix}/lib   # trailing comment
+includedir=${prefix}/include
+
+Name: quirks
+Description: Package exercising comment and continuation handling
+Version: 1.0.0
+Requires: bar \
+          baz
+Libs: -L${libdir} -lquirks # -lshould-not-appear
+Cflags: -I${includedir} -DQUIRKS # trailing note
