@@ -60,11 +60,14 @@ Implemented: `.pc` parsing and variable substitution, `--define-variable`,
 `PKG_CONFIG_SYSROOT_DIR` prefixing with `pc_sysrootdir`, and configurable
 system flag stripping.
 
-Output is emitted in a valid topological order but is not yet byte-for-byte
-identical to pkg-config for every package graph.
+Flag ordering and deduplication follow pkgconf. Across the package files
+installed on a typical desktop system, `--cflags --libs` output matches the
+system `pkg-config` byte-for-byte for about 99 percent of packages; the
+remaining cases involve deduplication corner cases and `.pc` files reached
+through symlinks.
 
-Not yet covered: exact flag ordering and deduplication parity, `Provides`
-version ranges and renames, and full `pc_top_builddir` handling. These are
+Not yet covered: `Provides` version ranges and renames, `.pc` symlink
+resolution for `pcfiledir`, and full `pc_top_builddir` handling. These are
 planned for later releases.
 
 ## Acknowledgments

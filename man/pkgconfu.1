@@ -13,8 +13,9 @@ flags an application needs in order to use the named libraries. It resolves
 substitution.
 .PP
 This is a partial reimplementation of pkg-config. It covers the common subset
-of the interface. Dependency ordering in the output is a valid topological
-order but is not yet byte-for-byte identical to pkg-config for every package.
+of the interface. Dependency traversal and flag deduplication follow pkgconf;
+output matches the system pkg-config for most package files but a few
+deduplication corner cases still differ.
 .SH OPTIONS
 .TP
 .B \-\-version
