@@ -1,0 +1,126 @@
+.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.1.0" "User Commands"
+.SH NAME
+pkgconfu \- report metadata, compile and link flags for installed libraries
+.SH SYNOPSIS
+.B pkgconfu
+[\fIOPTIONS\fR]
+\fIPACKAGE\fR...
+.SH DESCRIPTION
+.B pkgconfu
+reads pkg-config metadata files (\fB.pc\fR) and prints the compiler and linker
+flags an application needs in order to use the named libraries. It resolves
+\fBRequires\fR and \fBRequires.private\fR dependencies and performs variable
+substitution.
+.PP
+This is a partial reimplementation of pkg-config. Version 0.1.0 covers the
+common subset of the interface. Full compatibility is planned for later
+releases.
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the pkgconfu version and exit.
+.TP
+.B \-\-modversion
+Print the version of each package.
+.TP
+.B \-\-exists
+Exit with status 0 if every package (and its dependencies) is found and
+satisfies the requested version constraints, non-zero otherwise. Produces no
+output unless \fB\-\-print\-errors\fR is given.
+.TP
+.B \-\-cflags
+Print compile flags.
+.TP
+.B \-\-cflags\-only\-I
+Print only \fB\-I\fR flags.
+.TP
+.B \-\-cflags\-only\-other
+Print compile flags other than \fB\-I\fR.
+.TP
+.B \-\-libs
+Print link flags.
+.TP
+.B \-\-libs\-only\-l
+Print only \fB\-l\fR flags.
+.TP
+.B \-\-libs\-only\-L
+Print only \fB\-L\fR flags.
+.TP
+.B \-\-libs\-only\-other
+Print link flags other than \fB\-l\fR and \fB\-L\fR.
+.TP
+.B \-\-static
+Include \fBLibs.private\fR and \fBRequires.private\fR in link output, for
+static linking.
+.TP
+.BI \-\-variable= NAME
+Print the value of variable \fINAME\fR defined in the package file.
+.TP
+.BI \-\-define\-variable= NAME=VALUE
+Set variable \fINAME\fR to \fIVALUE\fR before parsing package files.
+.TP
+.B \-\-print\-variables
+List the variables defined in each package file.
+.TP
+.B \-\-list\-all
+List every package found in the search path.
+.TP
+.BI \-\-atleast\-version= VERSION
+Require each package to be at least \fIVERSION\fR.
+.TP
+.BI \-\-exact\-version= VERSION
+Require each package to be exactly \fIVERSION\fR.
+.TP
+.BI \-\-max\-version= VERSION
+Require each package to be at most \fIVERSION\fR.
+.TP
+.BI \-\-atleast\-pkgconfig\-version= VERSION
+Exit 0 if the emulated pkg-config compatibility level is at least \fIVERSION\fR.
+.TP
+.B \-\-print\-errors
+Print errors when a package cannot be resolved.
+.TP
+.B \-\-silence\-errors
+Suppress error output.
+.TP
+.B \-\-errors\-to\-stdout
+Print errors to standard output instead of standard error.
+.TP
+.B \-\-help
+Print a usage summary and exit.
+.SH PACKAGE ARGUMENTS
+A package argument is a module name, optionally followed by a version
+comparison operator (\fB<\fR, \fB<=\fR, \fB=\fR, \fB!=\fR, \fB>=\fR, \fB>\fR)
+and a version string, for example:
+.PP
+.RS
+.nf
+pkgconfu \-\-cflags "glib\-2.0 >= 2.40"
+.fi
+.RE
+.SH ENVIRONMENT
+.TP
+.B PKG_CONFIG_PATH
+Colon-separated list of directories prepended to the search path.
+.TP
+.B PKG_CONFIG_LIBDIR
+Colon-separated list of directories that replaces the built-in default search
+path.
+.TP
+.B PKG_CONFIG_ALLOW_SYSTEM_CFLAGS
+If set, do not strip \fB\-I/usr/include\fR from compile flags.
+.TP
+.B PKG_CONFIG_ALLOW_SYSTEM_LIBS
+If set, do not strip \fB\-L/usr/lib\fR and \fB\-L/usr/lib64\fR from link flags.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+A package was not found, a version constraint was not satisfied, or the command
+line was invalid.
+.SH SEE ALSO
+.BR pkg-config (1)
+.SH AUTHOR
+AnmiTaliDev <anmitalidev@nuros.org>
