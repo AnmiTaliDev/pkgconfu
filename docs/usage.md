@@ -53,8 +53,10 @@ under `--static`. `Conflicts` is enforced across the resolved set.
 `--maximum-traverse-depth=N` limits recursion.
 
 Output is emitted in a topological order (each package before its
-dependencies). This order is not yet byte-for-byte identical to pkg-config for
-every package graph.
+dependencies), matching pkgconf's traversal: `Requires.private` before
+`Requires`, entries walked in reverse. Deduplication follows pkgconf: `-I` and
+`-L` keep the first occurrence, `-l` and `-pthread` move to the last. Inline
+`#` comments and `\` line continuations in `.pc` files are handled.
 
 ## Sysroot
 
@@ -95,10 +97,12 @@ Implemented:
   `PKG_CONFIG_SYSTEM_LIBRARY_PATH`, `PKG_CONFIG_DISABLE_UNINSTALLED`
 - `*-uninstalled.pc` files
 
+- `pkg-config` and `pkgconf` as built-in virtual packages
+
 Not yet implemented, planned for later releases:
 
-- byte-for-byte flag ordering and deduplication identical to pkg-config
 - `Provides` version ranges and package renames
+- resolving `.pc` symlinks when computing `pcfiledir`
 - full `pc_top_builddir` build-tree handling
 
 ## Tests

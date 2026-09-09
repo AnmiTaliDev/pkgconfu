@@ -1,5 +1,5 @@
 PROJECT   = pkgconfu
-VERSION   = 0.3.0
+VERSION   = 0.4.0
 
 PREFIX   ?= /usr/local
 BINDIR   ?= $(PREFIX)/bin
@@ -7,6 +7,8 @@ DATADIR  ?= $(PREFIX)/share
 MANDIR   ?= $(DATADIR)/man
 
 PKGCONFU_DEFAULT_PATH ?= /usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+PKGCONFU_SYSTEM_INCLUDE_PATH ?= /usr/include
+PKGCONFU_SYSTEM_LIBRARY_PATH ?= /usr/lib
 
 CC       ?= cc
 CSTD     ?= c23
@@ -14,7 +16,9 @@ CFLAGS   ?= -O2 -g
 WARNINGS  = -Wall -Wextra
 CPPFLAGS += -D_GNU_SOURCE \
             -DPKGCONFU_VERSION=\"$(VERSION)\" \
-            -DPKGCONFU_DEFAULT_PATH=\"$(PKGCONFU_DEFAULT_PATH)\"
+            -DPKGCONFU_DEFAULT_PATH=\"$(PKGCONFU_DEFAULT_PATH)\" \
+            -DPKGCONFU_SYSTEM_INCLUDE_PATH=\"$(PKGCONFU_SYSTEM_INCLUDE_PATH)\" \
+            -DPKGCONFU_SYSTEM_LIBRARY_PATH=\"$(PKGCONFU_SYSTEM_LIBRARY_PATH)\"
 ALL_CFLAGS = -std=$(CSTD) $(WARNINGS) $(CFLAGS)
 
 SRC = src/util.c src/parse.c src/pkg.c src/main.c

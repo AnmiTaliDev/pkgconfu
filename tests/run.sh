@@ -51,7 +51,7 @@ rc_is() {
 	fi
 }
 
-out_is "version" "0.3.0" "$BIN" --version
+out_is "version" "0.4.0" "$BIN" --version
 out_is "modversion" "1.4.2" "$BIN" --modversion foo
 out_is "modversion multi" "1.4.2
 2.3.0" "$BIN" --modversion foo bar
@@ -129,6 +129,15 @@ out_is "define-prefix relocates prefix" \
 out_is "without define-prefix keeps original" \
 	"-I/nonexistent/original/include -L/nonexistent/original/lib -lrelocme" \
 	env PKG_CONFIG_LIBDIR=$RELOC "$BIN" --cflags --libs relocme
+
+out_is "inline comment stripped from Libs" \
+	"-L/opt/quirks/lib -lquirks -L/opt/bar/lib -lbar -L/opt/baz/lib -lbaz" \
+	"$BIN" --libs quirks
+out_is "line continuation joins Requires" "bar
+baz" "$BIN" --print-requires quirks
+out_is "trailing comment stripped from variable" "/opt/quirks/lib" \
+	"$BIN" --variable=libdir quirks
+out_is "virtual pkg-config exists" "0.29.2" "$BIN" --modversion pkg-config
 
 out_is "default system lib dir stripped" "" \
 	"$BIN" --libs-only-L sysroot-lib

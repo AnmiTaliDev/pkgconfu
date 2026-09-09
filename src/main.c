@@ -8,9 +8,16 @@
 #include "util.h"
 
 #ifndef PKGCONFU_VERSION
-#define PKGCONFU_VERSION "0.3.0"
+#define PKGCONFU_VERSION "0.4.0"
 #endif
 #define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
+
+#ifndef PKGCONFU_SYSTEM_INCLUDE_PATH
+#define PKGCONFU_SYSTEM_INCLUDE_PATH "/usr/include"
+#endif
+#ifndef PKGCONFU_SYSTEM_LIBRARY_PATH
+#define PKGCONFU_SYSTEM_LIBRARY_PATH "/usr/lib"
+#endif
 
 enum out_filter {
 	F_ALL,
@@ -490,8 +497,10 @@ int main(int argc, char **argv)
 	strlist sys_lib = { 0 };
 	const char *ei = getenv("PKG_CONFIG_SYSTEM_INCLUDE_PATH");
 	const char *el = getenv("PKG_CONFIG_SYSTEM_LIBRARY_PATH");
-	split_colon_list(ei && *ei ? ei : "/usr/include", &sys_inc);
-	split_colon_list(el && *el ? el : "/usr/lib:/usr/lib64", &sys_lib);
+	split_colon_list(ei && *ei ? ei : PKGCONFU_SYSTEM_INCLUDE_PATH,
+			 &sys_inc);
+	split_colon_list(el && *el ? el : PKGCONFU_SYSTEM_LIBRARY_PATH,
+			 &sys_lib);
 
 	bool check_only = o.exists || o.atleast_version || o.exact_version ||
 			  o.max_version;
