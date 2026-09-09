@@ -51,7 +51,7 @@ rc_is() {
 	fi
 }
 
-out_is "version" "0.3.0" "$BIN" --version
+out_is "version" "0.4.0" "$BIN" --version
 out_is "modversion" "1.4.2" "$BIN" --modversion foo
 out_is "modversion multi" "1.4.2
 2.3.0" "$BIN" --modversion foo bar
