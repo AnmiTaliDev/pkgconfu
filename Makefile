@@ -40,15 +40,27 @@ src/parse.o: src/parse.h src/util.h
 src/pkg.o:   src/pkg.h src/parse.h src/util.h
 src/main.o:  src/pkg.h src/parse.h src/util.h
 
+# Set PKG_CONFIG_SYMLINK=1 to also install a pkg-config -> pkgconfu symlink.
+PKG_CONFIG_SYMLINK ?=
+
 install: $(BIN)
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 $(BIN) $(DESTDIR)$(BINDIR)/$(BIN)
 	$(INSTALL) -d $(DESTDIR)$(MANDIR)/man1
 	$(INSTALL) -m 0644 man/$(PROJECT).1 $(DESTDIR)$(MANDIR)/man1/$(PROJECT).1
+	@if [ -n "$(PKG_CONFIG_SYMLINK)" ]; then \
+		ln -sf $(BIN) $(DESTDIR)$(BINDIR)/pkg-config; \
+		ln -sf $(PROJECT).1 $(DESTDIR)$(MANDIR)/man1/pkg-config.1; \
+		echo "installed pkg-config symlink"; \
+	fi
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(BIN)
 	rm -f $(DESTDIR)$(MANDIR)/man1/$(PROJECT).1
+	@if [ -n "$(PKG_CONFIG_SYMLINK)" ]; then \
+		rm -f $(DESTDIR)$(BINDIR)/pkg-config; \
+		rm -f $(DESTDIR)$(MANDIR)/man1/pkg-config.1; \
+	fi
 
 check: $(BIN)
 	sh tests/run.sh ./$(BIN)
