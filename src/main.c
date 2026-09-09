@@ -133,7 +133,7 @@ static void normalize(const strlist *raw, strlist *norm)
 		const char *t = raw->items[i];
 		if ((strcmp(t, "-I") == 0 || strcmp(t, "-L") == 0 ||
 		     strcmp(t, "-l") == 0) &&
-		    i + 1 < raw->len) {
+		    i + 1 < raw->len && raw->items[i + 1][0] != '-') {
 			strlist_push_owned(norm,
 					   xasprintf("%s%s", t,
 						     raw->items[++i]));
