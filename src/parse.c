@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "parse.h"
 
-static char *dir_of(const char *path)
+static char *dirname_of(const char *path)
 {
 	const char *slash = strrchr(path, '/');
 	if (!slash)
@@ -14,6 +16,25 @@ static char *dir_of(const char *path)
 	if (slash == path)
 		return xstrdup("/");
 	return xstrndup(path, (size_t)(slash - path));
+}
+
+static char *dir_of(const char *path)
+{
+	char link[PATH_MAX];
+	ssize_t ll = readlink(path, link, sizeof(link) - 1);
+	if (ll <= 0)
+		return dirname_of(path);
+
+	link[ll] = '\0';
+	if (link[0] == '/')
+		return dirname_of(link);
+
+	char *base = dirname_of(path);
+	char *joined = xasprintf("%s/%s", base, link);
+	char *dir = dirname_of(joined);
+	free(base);
+	free(joined);
+	return dir;
 }
 
 static void set_var(package *p, const char *name, char *value)
