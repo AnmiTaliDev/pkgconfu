@@ -1,4 +1,4 @@
-.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.2.0" "User Commands"
+.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.3.0" "User Commands"
 .SH NAME
 pkgconfu \- report metadata, compile and link flags for installed libraries
 .SH SYNOPSIS
@@ -91,6 +91,21 @@ Do not strip \fB\-I/usr/include\fR from compile flags.
 .B \-\-keep\-system\-libs
 Do not strip \fB\-L/usr/lib\fR and \fB\-L/usr/lib64\fR from link flags.
 .TP
+.B \-\-define\-prefix
+Redefine the \fBprefix\fR variable of each package to the directory two levels
+above the \fB.pc\fR file, so paths track a relocated installation.
+.TP
+.B \-\-dont\-define\-prefix
+Do not redefine \fBprefix\fR. This is the default.
+.TP
+.BI \-\-prefix\-variable= NAME
+Use \fINAME\fR instead of \fBprefix\fR as the variable redefined by
+\fB\-\-define\-prefix\fR.
+.TP
+.B \-\-msvc\-syntax
+Emit flags in Microsoft compiler and linker form (\fB/I\fR, \fB/libpath:\fR,
+\fBname.lib\fR, \fB/D\fR).
+.TP
 .BI \-\-atleast\-version= VERSION
 Require each package to be at least \fIVERSION\fR.
 .TP
@@ -145,6 +160,25 @@ If set, do not strip \fB\-I/usr/include\fR from compile flags.
 .TP
 .B PKG_CONFIG_ALLOW_SYSTEM_LIBS
 If set, do not strip \fB\-L/usr/lib\fR and \fB\-L/usr/lib64\fR from link flags.
+.TP
+.B PKG_CONFIG_SYSTEM_INCLUDE_PATH
+Colon-separated list of include directories stripped from compile flags.
+Defaults to \fB/usr/include\fR.
+.TP
+.B PKG_CONFIG_SYSTEM_LIBRARY_PATH
+Colon-separated list of library directories stripped from link flags. Defaults
+to \fB/usr/lib:/usr/lib64\fR.
+.TP
+.B PKG_CONFIG_DISABLE_UNINSTALLED
+If set, ignore \fB*\-uninstalled.pc\fR files.
+.SH UNINSTALLED PACKAGES
+If a file named \fImodule\fB\-uninstalled.pc\fR is present in the search path it
+is used in preference to \fImodule\fB.pc\fR, unless
+\fBPKG_CONFIG_DISABLE_UNINSTALLED\fR is set. This supports building against a
+library that has not been installed.
+.SH PROVIDES
+If a requested module name is not found as a file, package files are scanned for
+a matching \fBProvides\fR entry.
 .SH EXIT STATUS
 .TP
 .B 0

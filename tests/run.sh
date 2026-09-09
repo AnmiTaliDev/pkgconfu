@@ -51,7 +51,7 @@ rc_is() {
 	fi
 }
 
-out_is "version" "0.2.0" "$BIN" --version
+out_is "version" "0.3.0" "$BIN" --version
 out_is "modversion" "1.4.2" "$BIN" --modversion foo
 out_is "modversion multi" "1.4.2
 2.3.0" "$BIN" --modversion foo bar
@@ -108,6 +108,36 @@ out_is "pc_sysrootdir variable" "/SYS" \
 
 rc_is "atleast-pkgconfig-version ok" 0 "$BIN" --atleast-pkgconfig-version=0.29
 rc_is "atleast-pkgconfig-version fail" 1 "$BIN" --atleast-pkgconfig-version=1.0
+
+out_is "uninstalled variant wins" "9.9.9" "$BIN" --modversion unst
+out_is "installed variant with uninstalled disabled" "1.0.0" \
+	env PKG_CONFIG_DISABLE_UNINSTALLED=1 "$BIN" --modversion unst
+
+out_is "provides resolves virtual name (modversion)" "2.0.0" \
+	"$BIN" --modversion virtual-thing
+rc_is "provides resolves virtual name (exists)" 0 "$BIN" --exists virtual-thing
+out_is "provides virtual libs" "-L/opt/provider/lib -lprovider" \
+	"$BIN" --libs virtual-thing
+
+out_is "msvc-syntax" '/I/opt/foo/include /I/opt/bar/include /libpath:/opt/foo/lib foo.lib /libpath:/opt/bar/lib bar.lib' \
+	"$BIN" --msvc-syntax --cflags --libs foo
+
+RELOC=$FIX/reloc/lib/pkgconfig
+out_is "define-prefix relocates prefix" \
+	"-I$FIX/reloc/include -L$FIX/reloc/lib -lrelocme" \
+	env PKG_CONFIG_LIBDIR=$RELOC "$BIN" --define-prefix --cflags --libs relocme
+out_is "without define-prefix keeps original" \
+	"-I/nonexistent/original/include -L/nonexistent/original/lib -lrelocme" \
+	env PKG_CONFIG_LIBDIR=$RELOC "$BIN" --cflags --libs relocme
+
+out_is "default system lib dir stripped" "" \
+	"$BIN" --libs-only-L sysroot-lib
+out_is "custom system lib path keeps /usr/lib" "-L/usr/lib" \
+	env PKG_CONFIG_SYSTEM_LIBRARY_PATH=/opt/elsewhere "$BIN" \
+	--libs-only-L sysroot-lib
+out_is "custom system lib path strips /opt/foo/lib" "-L/opt/bar/lib" \
+	env PKG_CONFIG_SYSTEM_LIBRARY_PATH=/opt/foo/lib "$BIN" \
+	--libs-only-L foo
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

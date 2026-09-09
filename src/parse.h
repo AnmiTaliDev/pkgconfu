@@ -35,9 +35,15 @@ typedef struct package {
 	strlist unresolved;
 } package;
 
+typedef struct {
+	const strlist *defines;
+	const char *sysroot;
+	bool define_prefix;
+	const char *prefix_var;
+} parse_opts;
+
 package *package_parse_file(const char *path, const char *key,
-			   const strlist *defines, const char *sysroot,
-			   strbuf *err);
+			   const parse_opts *opts, strbuf *err);
 void package_free(package *p);
 const char *package_get_var(const package *p, const char *name);
 

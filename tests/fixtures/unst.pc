@@ -1,0 +1,7 @@
+prefix=/opt/unst
+libdir=${prefix}/lib
+
+Name: unst
+Description: Installed variant
+Version: 1.0.0
+Libs: -L${libdir} -lunst

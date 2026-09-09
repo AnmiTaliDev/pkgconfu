@@ -50,20 +50,22 @@ See [docs/usage.md](docs/usage.md) for the full option list and behavior.
 ## Compatibility
 
 Implemented: `.pc` parsing and variable substitution, `--define-variable`,
-`Requires` / `Requires.private` / `Conflicts` / `Cflags.private`, `--cflags`
-and `--libs` with their filtered variants and `--static`, `--modversion`,
-`--exists`, `--variable`, `--print-variables`, `--print-requires`,
-`--print-requires-private`, `--print-provides`, `--validate`, `--list-all`,
-version constraints, `--with-path`, `--maximum-traverse-depth`,
-`--keep-system-cflags` / `--keep-system-libs`, `PKG_CONFIG_SYSROOT_DIR`
-prefixing with `pc_sysrootdir`, and system flag stripping.
+`Requires` / `Requires.private` / `Conflicts` / `Cflags.private` / `Provides`,
+`--cflags` and `--libs` with their filtered variants, `--static`,
+`--msvc-syntax`, `--modversion`, `--exists`, `--variable`, `--print-variables`,
+`--print-requires`, `--print-requires-private`, `--print-provides`,
+`--validate`, `--list-all`, version constraints, `--with-path`,
+`--maximum-traverse-depth`, `--keep-system-cflags` / `--keep-system-libs`,
+`--define-prefix` / `--prefix-variable`, `*-uninstalled.pc` files,
+`PKG_CONFIG_SYSROOT_DIR` prefixing with `pc_sysrootdir`, and configurable
+system flag stripping.
 
 Output is emitted in a valid topological order but is not yet byte-for-byte
 identical to pkg-config for every package graph.
 
-Not yet covered: exact flag ordering and deduplication parity, uninstalled
-package files, `Provides` based name resolution, `--msvc-syntax`, and
-`--define-prefix`. These are planned for later releases.
+Not yet covered: exact flag ordering and deduplication parity, `Provides`
+version ranges and renames, and full `pc_top_builddir` handling. These are
+planned for later releases.
 
 ## Acknowledgments
 

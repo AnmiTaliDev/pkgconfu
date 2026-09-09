@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include <ctype.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,17 @@ void pkg_ctx_init(pkg_ctx *ctx)
 	strlist_init(&ctx->defines);
 	ctx->sysroot = nullptr;
 	ctx->max_depth = 0;
+	ctx->disable_uninstalled = false;
+	ctx->define_prefix = false;
+	ctx->prefix_var = "prefix";
 	ctx->loaded = nullptr;
 	ctx->nloaded = 0;
 	ctx->loadcap = 0;
+	ctx->provides_indexed = false;
+	strlist_init(&ctx->alias_name);
+	ctx->alias_pkg = nullptr;
+	ctx->nalias = 0;
+	ctx->aliascap = 0;
 	strbuf_init(&ctx->errors);
 }
 
@@ -33,6 +42,8 @@ void pkg_ctx_free(pkg_ctx *ctx)
 	for (size_t i = 0; i < ctx->nloaded; i++)
 		package_free(ctx->loaded[i]);
 	free(ctx->loaded);
+	strlist_free(&ctx->alias_name);
+	free(ctx->alias_pkg);
 	strbuf_free(&ctx->errors);
 }
 
@@ -83,27 +94,107 @@ static void cache_add(pkg_ctx *ctx, package *p)
 	ctx->loaded[ctx->nloaded++] = p;
 }
 
+static package *load_path(pkg_ctx *ctx, const char *name, const char *file)
+{
+	parse_opts opts = {
+		.defines = &ctx->defines,
+		.sysroot = ctx->sysroot,
+		.define_prefix = ctx->define_prefix,
+		.prefix_var = ctx->prefix_var,
+	};
+	package *p = package_parse_file(file, name, &opts, &ctx->errors);
+	if (p)
+		cache_add(ctx, p);
+	return p;
+}
+
+static package *provides_lookup(pkg_ctx *ctx, const char *name);
+
+static package *alias_get(pkg_ctx *ctx, const char *name)
+{
+	long i = strlist_index(&ctx->alias_name, name);
+	return i >= 0 ? ctx->alias_pkg[i] : nullptr;
+}
+
+static void alias_add(pkg_ctx *ctx, const char *name, package *p)
+{
+	if (ctx->nalias == ctx->aliascap) {
+		ctx->aliascap = ctx->aliascap ? ctx->aliascap * 2 : 8;
+		ctx->alias_pkg = xrealloc(ctx->alias_pkg,
+					  ctx->aliascap * sizeof(*ctx->alias_pkg));
+	}
+	strlist_push(&ctx->alias_name, name);
+	ctx->alias_pkg[ctx->nalias++] = p;
+}
+
 package *pkg_load(pkg_ctx *ctx, const char *name)
 {
 	package *c = cached(ctx, name);
 	if (c)
 		return c;
+	c = alias_get(ctx, name);
+	if (c)
+		return c;
+
+	if (!ctx->disable_uninstalled) {
+		for (size_t i = 0; i < ctx->path.len; i++) {
+			char *file = xasprintf("%s/%s-uninstalled.pc",
+					       ctx->path.items[i], name);
+			bool ok = access(file, R_OK) == 0;
+			package *p = ok ? load_path(ctx, name, file) : nullptr;
+			free(file);
+			if (ok)
+				return p;
+		}
+	}
 
 	for (size_t i = 0; i < ctx->path.len; i++) {
 		char *file = xasprintf("%s/%s.pc", ctx->path.items[i], name);
-		if (access(file, R_OK) == 0) {
-			package *p = package_parse_file(file, name,
-							&ctx->defines,
-							ctx->sysroot,
-							&ctx->errors);
-			free(file);
-			if (p) {
-				cache_add(ctx, p);
+		bool ok = access(file, R_OK) == 0;
+		package *p = ok ? load_path(ctx, name, file) : nullptr;
+		free(file);
+		if (ok)
+			return p;
+	}
+
+	return provides_lookup(ctx, name);
+}
+
+static package *provides_lookup(pkg_ctx *ctx, const char *name)
+{
+	if (ctx->provides_indexed)
+		return nullptr;
+	ctx->provides_indexed = true;
+
+	for (size_t i = 0; i < ctx->path.len; i++) {
+		DIR *d = opendir(ctx->path.items[i]);
+		if (!d)
+			continue;
+		struct dirent *e;
+		while ((e = readdir(d))) {
+			const char *dot = strrchr(e->d_name, '.');
+			if (!dot || strcmp(dot, ".pc") != 0)
+				continue;
+			char *mod = xstrndup(e->d_name,
+					     (size_t)(dot - e->d_name));
+			package *p = pkg_load(ctx, mod);
+			free(mod);
+			if (!p || !p->provides_str)
+				continue;
+			pkg_dep *pv;
+			size_t npv = pkg_parse_deps(p->provides_str, &pv);
+			bool hit = false;
+			for (size_t j = 0; j < npv; j++)
+				if (strcmp(pv[j].name, name) == 0)
+					hit = true;
+			pkg_deps_free(pv, npv);
+			if (hit) {
+				closedir(d);
+				alias_add(ctx, name, p);
 				return p;
 			}
-			return nullptr;
 		}
-		free(file);
+		closedir(d);
 	}
 	return nullptr;
 }

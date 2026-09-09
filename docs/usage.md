@@ -61,28 +61,44 @@ every package graph.
 With `PKG_CONFIG_SYSROOT_DIR` set, `-I` and `-L` paths in the output are
 prefixed with the sysroot, and the `pc_sysrootdir` variable is set accordingly.
 
+## Uninstalled packages
+
+A `module-uninstalled.pc` file in the search path takes precedence over
+`module.pc`, unless `PKG_CONFIG_DISABLE_UNINSTALLED` is set.
+
+## Provides
+
+If a requested module name has no matching `.pc` file, package files are scanned
+for a `Provides` entry with that name.
+
+## Relocation
+
+`--define-prefix` sets each package's `prefix` variable to the directory two
+levels above its `.pc` file. `--prefix-variable=NAME` changes which variable is
+redefined.
+
 ## Scope
 
 Implemented:
 
 - `.pc` parsing, variable substitution, `--define-variable`
-- `Requires`, `Requires.private`, `Conflicts`, `Cflags.private`
-- `--cflags`, `--libs` and their filtered variants, `--static`
+- `Requires`, `Requires.private`, `Conflicts`, `Cflags.private`, `Provides`
+- `--cflags`, `--libs` and their filtered variants, `--static`, `--msvc-syntax`
 - `--modversion`, `--exists`, `--variable`, `--print-variables`
 - `--print-requires`, `--print-requires-private`, `--print-provides`
 - `--validate`, `--list-all`
 - version constraints and `--atleast-version` / `--exact-version` /
   `--max-version` / `--atleast-pkgconfig-version`
 - `--with-path`, `--maximum-traverse-depth`, `--keep-system-cflags`,
-  `--keep-system-libs`
-- `PKG_CONFIG_SYSROOT_DIR` prefixing and `pc_sysrootdir`
+  `--keep-system-libs`, `--define-prefix`, `--prefix-variable`
+- `PKG_CONFIG_SYSROOT_DIR`, `PKG_CONFIG_SYSTEM_INCLUDE_PATH`,
+  `PKG_CONFIG_SYSTEM_LIBRARY_PATH`, `PKG_CONFIG_DISABLE_UNINSTALLED`
+- `*-uninstalled.pc` files
 
 Not yet implemented, planned for later releases:
 
 - byte-for-byte flag ordering and deduplication identical to pkg-config
-- uninstalled package files (`*-uninstalled.pc`)
-- `Provides` based module name resolution and renames
-- `--msvc-syntax`, `--define-prefix`
+- `Provides` version ranges and package renames
 - full `pc_top_builddir` build-tree handling
 
 ## Tests

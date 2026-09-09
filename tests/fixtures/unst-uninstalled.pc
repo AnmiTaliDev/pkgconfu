@@ -1,0 +1,5 @@
+Name: unst
+Description: Uninstalled variant
+Version: 9.9.9
+Libs: -L/build/unst -lunst
+Cflags: -I/build/unst/include
