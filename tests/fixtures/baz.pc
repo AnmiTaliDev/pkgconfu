@@ -1,0 +1,7 @@
+prefix=/opt/baz
+libdir=${prefix}/lib
+
+Name: baz
+Description: Baz support library
+Version: 0.9.0
+Libs: -L${libdir} -lbaz

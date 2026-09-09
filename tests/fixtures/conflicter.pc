@@ -1,0 +1,5 @@
+Name: conflicter
+Description: Package that conflicts with bar
+Version: 1.0.0
+Conflicts: bar >= 2.0
+Libs: -lconflicter

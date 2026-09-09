@@ -17,6 +17,8 @@ void pkg_ctx_init(pkg_ctx *ctx)
 {
 	strlist_init(&ctx->path);
 	strlist_init(&ctx->defines);
+	ctx->sysroot = nullptr;
+	ctx->max_depth = 0;
 	ctx->loaded = nullptr;
 	ctx->nloaded = 0;
 	ctx->loadcap = 0;
@@ -27,6 +29,7 @@ void pkg_ctx_free(pkg_ctx *ctx)
 {
 	strlist_free(&ctx->path);
 	strlist_free(&ctx->defines);
+	free(ctx->sysroot);
 	for (size_t i = 0; i < ctx->nloaded; i++)
 		package_free(ctx->loaded[i]);
 	free(ctx->loaded);
@@ -91,6 +94,7 @@ package *pkg_load(pkg_ctx *ctx, const char *name)
 		if (access(file, R_OK) == 0) {
 			package *p = package_parse_file(file, name,
 							&ctx->defines,
+							ctx->sysroot,
 							&ctx->errors);
 			free(file);
 			if (p) {
@@ -318,9 +322,9 @@ void pkg_deps_free(pkg_dep *d, size_t n)
 void pkglist_free(pkglist *l)
 {
 	free(l->items);
-	free(l->depth);
+	free(l->pub);
 	l->items = nullptr;
-	l->depth = nullptr;
+	l->pub = nullptr;
 	l->len = l->cap = 0;
 }
 
@@ -332,20 +336,28 @@ static long pkglist_index(const pkglist *l, const package *p)
 	return -1;
 }
 
-static void pkglist_push(pkglist *l, package *p, size_t depth)
+void pkglist_append(pkglist *l, package *p, bool pub)
 {
 	if (l->len == l->cap) {
 		l->cap = l->cap ? l->cap * 2 : 8;
 		l->items = xrealloc(l->items, l->cap * sizeof(*l->items));
-		l->depth = xrealloc(l->depth, l->cap * sizeof(*l->depth));
+		l->pub = xrealloc(l->pub, l->cap * sizeof(*l->pub));
 	}
 	l->items[l->len] = p;
-	l->depth[l->len] = depth;
+	l->pub[l->len] = pub;
 	l->len++;
 }
 
-static int add_pkg(pkg_ctx *ctx, const pkg_dep *dep, bool want_private,
-		   size_t depth, pkglist *out, strlist *stack)
+static package *pkglist_by_name(const pkglist *l, const char *name)
+{
+	for (size_t i = 0; i < l->len; i++)
+		if (strcmp(l->items[i]->key, name) == 0)
+			return l->items[i];
+	return nullptr;
+}
+
+static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
+		 pkglist *out, strlist *seen, strlist *stack)
 {
 	package *p = pkg_load(ctx, dep->name);
 	if (!p) {
@@ -368,59 +380,91 @@ static int add_pkg(pkg_ctx *ctx, const pkg_dep *dep, bool want_private,
 	if (strlist_contains(stack, p->key))
 		return 0;
 
-	long idx = pkglist_index(out, p);
-	if (idx >= 0) {
-		if (depth <= out->depth[idx])
+	bool already = strlist_contains(seen, p->key);
+	if (already) {
+		long idx = pkglist_index(out, p);
+		if (!pub_path || idx < 0 || out->pub[idx])
 			return 0;
-		out->depth[idx] = depth;
+		out->pub[idx] = true;
 	} else {
-		pkglist_push(out, p, depth);
+		strlist_push(seen, p->key);
 	}
-
 	strlist_push(stack, p->key);
-	int rc = 0;
-	pkg_dep *sub;
-	size_t nsub = pkg_parse_deps(p->requires_str, &sub);
-	for (size_t i = 0; i < nsub; i++)
-		if (add_pkg(ctx, &sub[i], want_private, depth + 1, out,
-			    stack) != 0)
-			rc = -1;
-	pkg_deps_free(sub, nsub);
 
-	if (want_private) {
-		nsub = pkg_parse_deps(p->requires_private_str, &sub);
-		for (size_t i = 0; i < nsub; i++)
-			if (add_pkg(ctx, &sub[i], want_private, depth + 1, out,
-				    stack) != 0)
+	int rc = 0;
+	bool recurse = ctx->max_depth <= 0 || depth < ctx->max_depth;
+	if (recurse) {
+		pkg_dep *sub;
+		size_t nsub = pkg_parse_deps(p->requires_str, &sub);
+		for (size_t i = nsub; i-- > 0;)
+			if (visit(ctx, &sub[i], pub_path, depth + 1, out, seen,
+				  stack) != 0)
 				rc = -1;
 		pkg_deps_free(sub, nsub);
+
+		if (!already) {
+			size_t np = pkg_parse_deps(p->requires_private_str,
+						   &sub);
+			for (size_t i = np; i-- > 0;)
+				if (visit(ctx, &sub[i], false, depth + 1, out,
+					  seen, stack) != 0)
+					rc = -1;
+			pkg_deps_free(sub, np);
+		}
 	}
+
 	strlist_remove_at(stack, stack->len - 1);
+	if (!already)
+		pkglist_append(out, p, pub_path);
 	return rc;
 }
 
-int pkg_closure(pkg_ctx *ctx, const pkg_dep *roots, size_t nroots,
-		bool want_private, pkglist *out)
+static int check_conflicts(pkg_ctx *ctx, const pkglist *out)
 {
 	int rc = 0;
+	for (size_t i = 0; i < out->len; i++) {
+		pkg_dep *cf;
+		size_t ncf = pkg_parse_deps(out->items[i]->conflicts_str, &cf);
+		for (size_t j = 0; j < ncf; j++) {
+			package *other = pkglist_by_name(out, cf[j].name);
+			if (other && other != out->items[i] &&
+			    pkg_op_satisfied(cf[j].op, other->version,
+					     cf[j].version)) {
+				strbuf_addf(&ctx->errors,
+					    "Package '%s' conflicts with '%s'\n",
+					    out->items[i]->key, cf[j].name);
+				rc = -1;
+			}
+		}
+		pkg_deps_free(cf, ncf);
+	}
+	return rc;
+}
+
+int pkg_closure(pkg_ctx *ctx, const pkg_dep *roots, size_t nroots, pkglist *out)
+{
+	int rc = 0;
+	strlist seen;
 	strlist stack;
+	strlist_init(&seen);
 	strlist_init(&stack);
 	for (size_t i = 0; i < nroots; i++)
-		if (add_pkg(ctx, &roots[i], want_private, 0, out, &stack) != 0)
+		if (visit(ctx, &roots[i], true, 1, out, &seen, &stack) != 0)
 			rc = -1;
+	strlist_free(&seen);
 	strlist_free(&stack);
 
-	for (size_t i = 1; i < out->len; i++) {
-		package *pi = out->items[i];
-		size_t di = out->depth[i];
-		size_t j = i;
-		while (j > 0 && out->depth[j - 1] > di) {
-			out->items[j] = out->items[j - 1];
-			out->depth[j] = out->depth[j - 1];
-			j--;
-		}
-		out->items[j] = pi;
-		out->depth[j] = di;
+	for (size_t i = 0; i < out->len / 2; i++) {
+		size_t j = out->len - 1 - i;
+		package *t = out->items[i];
+		out->items[i] = out->items[j];
+		out->items[j] = t;
+		bool b = out->pub[i];
+		out->pub[i] = out->pub[j];
+		out->pub[j] = b;
 	}
+
+	if (rc == 0 && check_conflicts(ctx, out) != 0)
+		rc = -1;
 	return rc;
 }

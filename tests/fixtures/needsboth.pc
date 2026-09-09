@@ -1,0 +1,5 @@
+Name: needsboth
+Description: Requires bar and conflicter, which conflict
+Version: 1.0.0
+Requires: bar, conflicter
+Libs: -lneedsboth

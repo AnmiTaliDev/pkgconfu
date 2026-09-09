@@ -24,6 +24,8 @@ typedef struct {
 typedef struct {
 	strlist path;
 	strlist defines;
+	char *sysroot;
+	int max_depth;
 	package **loaded;
 	size_t nloaded;
 	size_t loadcap;
@@ -32,7 +34,7 @@ typedef struct {
 
 typedef struct {
 	package **items;
-	size_t *depth;
+	bool *pub;
 	size_t len;
 	size_t cap;
 } pkglist;
@@ -54,7 +56,8 @@ size_t pkg_parse_deps(const char *s, pkg_dep **out);
 void pkg_deps_free(pkg_dep *d, size_t n);
 
 void pkglist_free(pkglist *l);
+void pkglist_append(pkglist *l, package *p, bool pub);
 int pkg_closure(pkg_ctx *ctx, const pkg_dep *roots, size_t nroots,
-		bool want_private, pkglist *out);
+		pkglist *out);
 
 #endif

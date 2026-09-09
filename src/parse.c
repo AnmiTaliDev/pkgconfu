@@ -55,8 +55,7 @@ static const char *define_lookup(const strlist *defines, const char *name)
 	return nullptr;
 }
 
-static char *substitute(const package *p, const strlist *defines,
-			const char *in)
+static char *substitute(package *p, const strlist *defines, const char *in)
 {
 	strbuf out;
 	strbuf_init(&out);
@@ -78,6 +77,8 @@ static char *substitute(const package *p, const strlist *defines,
 				val = package_get_var(p, name);
 			if (val)
 				strbuf_adds(&out, val);
+			else if (!strlist_contains(&p->unresolved, name))
+				strlist_push(&p->unresolved, name);
 			free(name);
 			s = end + 1;
 			continue;
@@ -99,7 +100,8 @@ static void append_field(char **field, const char *value)
 }
 
 package *package_parse_file(const char *path, const char *key,
-			   const strlist *defines, strbuf *err)
+			   const strlist *defines, const char *sysroot,
+			   strbuf *err)
 {
 	FILE *f = fopen(path, "r");
 	if (!f) {
@@ -116,6 +118,12 @@ package *package_parse_file(const char *path, const char *key,
 	char *pcfiledir = dir_of(path);
 	set_var(p, "pcfiledir", xstrdup(pcfiledir));
 	free(pcfiledir);
+	set_var(p, "pc_sysrootdir",
+		xstrdup(sysroot && *sysroot ? sysroot : "/"));
+	set_var(p, "pc_top_builddir",
+		xstrdup(getenv("PKG_CONFIG_TOP_BUILD_DIR")
+				? getenv("PKG_CONFIG_TOP_BUILD_DIR")
+				: "$(top_builddir)"));
 
 	char *line = nullptr;
 	size_t cap = 0;
@@ -165,6 +173,9 @@ package *package_parse_file(const char *path, const char *key,
 		else if (strcmp(name, "Cflags") == 0 ||
 			 strcmp(name, "CFlags") == 0)
 			append_field(&p->cflags, sub);
+		else if (strcmp(name, "Cflags.private") == 0 ||
+			 strcmp(name, "CFlags.private") == 0)
+			append_field(&p->cflags_private, sub);
 		else if (strcmp(name, "Libs") == 0)
 			append_field(&p->libs, sub);
 		else if (strcmp(name, "Libs.private") == 0)
@@ -175,6 +186,8 @@ package *package_parse_file(const char *path, const char *key,
 			append_field(&p->requires_private_str, sub);
 		else if (strcmp(name, "Conflicts") == 0)
 			append_field(&p->conflicts_str, sub);
+		else if (strcmp(name, "Provides") == 0)
+			append_field(&p->provides_str, sub);
 		free(sub);
 	}
 
@@ -194,11 +207,14 @@ void package_free(package *p)
 	free(p->version);
 	free(p->url);
 	free(p->cflags);
+	free(p->cflags_private);
 	free(p->libs);
 	free(p->libs_private);
 	free(p->requires_str);
 	free(p->requires_private_str);
 	free(p->conflicts_str);
+	free(p->provides_str);
+	strlist_free(&p->unresolved);
 	for (size_t i = 0; i < p->nvars; i++) {
 		free(p->vars[i].name);
 		free(p->vars[i].value);

@@ -1,4 +1,4 @@
-.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.1.0" "User Commands"
+.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.2.0" "User Commands"
 .SH NAME
 pkgconfu \- report metadata, compile and link flags for installed libraries
 .SH SYNOPSIS
@@ -12,9 +12,9 @@ flags an application needs in order to use the named libraries. It resolves
 \fBRequires\fR and \fBRequires.private\fR dependencies and performs variable
 substitution.
 .PP
-This is a partial reimplementation of pkg-config. Version 0.1.0 covers the
-common subset of the interface. Full compatibility is planned for later
-releases.
+This is a partial reimplementation of pkg-config. It covers the common subset
+of the interface. Dependency ordering in the output is a valid topological
+order but is not yet byte-for-byte identical to pkg-config for every package.
 .SH OPTIONS
 .TP
 .B \-\-version
@@ -62,8 +62,34 @@ Set variable \fINAME\fR to \fIVALUE\fR before parsing package files.
 .B \-\-print\-variables
 List the variables defined in each package file.
 .TP
+.B \-\-print\-requires
+List the \fBRequires\fR entries of each package.
+.TP
+.B \-\-print\-requires\-private
+List the \fBRequires.private\fR entries of each package.
+.TP
+.B \-\-print\-provides
+Print what each package provides, as \fBname = version\fR lines.
+.TP
+.B \-\-validate
+Check each package file for missing required fields and undefined variables.
+Produces no output on success.
+.TP
 .B \-\-list\-all
 List every package found in the search path.
+.TP
+.BI \-\-with\-path= DIR
+Prepend \fIDIR\fR to the package search path. May be repeated.
+.TP
+.BI \-\-maximum\-traverse\-depth= N
+Limit dependency recursion to \fIN\fR levels. A value of 1 restricts output to
+the named packages only.
+.TP
+.B \-\-keep\-system\-cflags
+Do not strip \fB\-I/usr/include\fR from compile flags.
+.TP
+.B \-\-keep\-system\-libs
+Do not strip \fB\-L/usr/lib\fR and \fB\-L/usr/lib64\fR from link flags.
 .TP
 .BI \-\-atleast\-version= VERSION
 Require each package to be at least \fIVERSION\fR.
@@ -106,6 +132,13 @@ Colon-separated list of directories prepended to the search path.
 .B PKG_CONFIG_LIBDIR
 Colon-separated list of directories that replaces the built-in default search
 path.
+.TP
+.B PKG_CONFIG_SYSROOT_DIR
+Prefix prepended to \fB\-I\fR and \fB\-L\fR paths in the output and exposed as
+the \fBpc_sysrootdir\fR variable.
+.TP
+.B PKG_CONFIG_TOP_BUILD_DIR
+Value exposed as the \fBpc_top_builddir\fR variable.
 .TP
 .B PKG_CONFIG_ALLOW_SYSTEM_CFLAGS
 If set, do not strip \fB\-I/usr/include\fR from compile flags.

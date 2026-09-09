@@ -1,0 +1,5 @@
+prefix=/opt/broken
+
+Name: broken
+Description: Package with problems
+Libs: -L${undefined_dir} -lbroken

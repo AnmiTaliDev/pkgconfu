@@ -17,6 +17,7 @@ pkgconfu is a reimplementation of pkg-config.
 
 ```
 make
+make check
 sudo make install
 ```
 
@@ -48,16 +49,21 @@ See [docs/usage.md](docs/usage.md) for the full option list and behavior.
 
 ## Compatibility
 
-Version 0.1.0 implements the common subset of the pkg-config interface:
-`.pc` parsing and variable substitution, `Requires` and `Requires.private`
-resolution, `--cflags` and `--libs` with their filtered variants,
-`--modversion`, `--exists`, `--variable`, `--print-variables`, `--list-all`,
-version constraints, and system flag stripping.
+Implemented: `.pc` parsing and variable substitution, `--define-variable`,
+`Requires` / `Requires.private` / `Conflicts` / `Cflags.private`, `--cflags`
+and `--libs` with their filtered variants and `--static`, `--modversion`,
+`--exists`, `--variable`, `--print-variables`, `--print-requires`,
+`--print-requires-private`, `--print-provides`, `--validate`, `--list-all`,
+version constraints, `--with-path`, `--maximum-traverse-depth`,
+`--keep-system-cflags` / `--keep-system-libs`, `PKG_CONFIG_SYSROOT_DIR`
+prefixing with `pc_sysrootdir`, and system flag stripping.
 
-Not yet covered: `PKG_CONFIG_SYSROOT_DIR` path rewriting, `Conflicts`
-enforcement, `--print-requires` and related introspection options, uninstalled
-package handling, and byte-for-byte flag ordering identical to pkg-config.
-These are planned for later releases.
+Output is emitted in a valid topological order but is not yet byte-for-byte
+identical to pkg-config for every package graph.
+
+Not yet covered: exact flag ordering and deduplication parity, uninstalled
+package files, `Provides` based name resolution, `--msvc-syntax`, and
+`--define-prefix`. These are planned for later releases.
 
 ## Acknowledgments
 
