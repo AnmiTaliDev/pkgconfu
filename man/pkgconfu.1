@@ -1,4 +1,4 @@
-.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.4.0" "User Commands"
+.TH PKGCONFU 1 "2026-09-09" "pkgconfu 0.5.0" "User Commands"
 .SH NAME
 pkgconfu \- report metadata, compile and link flags for installed libraries
 .SH SYNOPSIS
@@ -75,6 +75,9 @@ Print what each package provides, as \fBname = version\fR lines.
 .B \-\-validate
 Check each package file for missing required fields and undefined variables.
 Produces no output on success.
+.TP
+.B \-\-path
+Print the filesystem path of each named package file, one per line.
 .TP
 .B \-\-list\-all
 List every package found in the search path.

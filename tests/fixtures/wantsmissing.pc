@@ -1,0 +1,5 @@
+Name: wantsmissing
+Description: Requires a package that does not exist
+Version: 1.0.0
+Requires: missingdep
+Libs: -lwantsmissing

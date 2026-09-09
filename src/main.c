@@ -8,7 +8,7 @@
 #include "util.h"
 
 #ifndef PKGCONFU_VERSION
-#define PKGCONFU_VERSION "0.4.0"
+#define PKGCONFU_VERSION "0.5.0"
 #endif
 #define PKGCONFU_PKGCONFIG_COMPAT "0.29.2"
 
@@ -40,6 +40,7 @@ typedef struct {
 	bool print_requires_private;
 	bool print_provides;
 	bool validate;
+	bool path;
 	bool list_all;
 	bool help;
 	bool version;
@@ -81,6 +82,7 @@ static void usage(FILE *f)
 		"  --print-requires-private      list Requires.private entries\n"
 		"  --print-provides              list what the packages provide\n"
 		"  --validate                    check package files for problems\n"
+		"  --path                        print the path of each package file\n"
 		"  --list-all                    list all known packages\n"
 		"  --with-path=DIR               prepend DIR to the search path\n"
 		"  --maximum-traverse-depth=N    limit dependency recursion depth\n"
@@ -133,7 +135,7 @@ static void normalize(const strlist *raw, strlist *norm)
 		const char *t = raw->items[i];
 		if ((strcmp(t, "-I") == 0 || strcmp(t, "-L") == 0 ||
 		     strcmp(t, "-l") == 0) &&
-		    i + 1 < raw->len) {
+		    i + 1 < raw->len && raw->items[i + 1][0] != '-') {
 			strlist_push_owned(norm,
 					   xasprintf("%s%s", t,
 						     raw->items[++i]));
@@ -395,6 +397,8 @@ int main(int argc, char **argv)
 			o.print_provides = true;
 		else if (strcmp(a, "--validate") == 0)
 			o.validate = true;
+		else if (strcmp(a, "--path") == 0)
+			o.path = true;
 		else if (strcmp(a, "--list-all") == 0)
 			o.list_all = true;
 		else if (strcmp(a, "--keep-system-cflags") == 0)
@@ -555,20 +559,18 @@ int main(int argc, char **argv)
 
 	bool simple_action = o.modversion || o.variable || o.print_variables ||
 			     o.print_requires || o.print_requires_private ||
-			     o.print_provides || o.validate;
+			     o.print_provides || o.validate || o.path;
 	bool need_closure = check_only || o.cflags || o.libs ||
 			    (!simple_action);
 
 	if (need_closure)
 		rc |= pkg_closure(&ctx, roots, nroots, &pk);
 
-	if (simple_action) {
+	if (simple_action && !need_closure) {
 		for (size_t i = 0; i < nroots; i++) {
 			package *p = pkg_load(&ctx, roots[i].name);
 			if (!p) {
-				strbuf_addf(&ctx.errors,
-					    "Package '%s' was not found in the pkg-config search path\n",
-					    roots[i].name);
+				pkg_err_not_found(&ctx, roots[i].name, nullptr);
 				rc = -1;
 			} else if (roots[i].op != CMP_ANY &&
 				   !pkg_op_satisfied(roots[i].op, p->version,
@@ -599,6 +601,14 @@ int main(int argc, char **argv)
 			package *p = pkg_load(&ctx, roots[i].name);
 			if (p && validate_pkg(p))
 				ret = 1;
+		}
+	}
+
+	if (o.path) {
+		for (size_t i = 0; i < nroots; i++) {
+			package *p = pkg_load(&ctx, roots[i].name);
+			if (p && strcmp(p->path, "<virtual>") != 0)
+				puts(p->path);
 		}
 	}
 

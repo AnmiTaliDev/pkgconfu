@@ -467,14 +467,27 @@ static package *pkglist_by_name(const pkglist *l, const char *name)
 	return nullptr;
 }
 
+void pkg_err_not_found(pkg_ctx *ctx, const char *name, const char *parent)
+{
+	strbuf_addf(&ctx->errors,
+		    "Package %s was not found in the pkg-config search path.\n"
+		    "Perhaps you should add the directory containing `%s.pc'\n"
+		    "to the PKG_CONFIG_PATH environment variable\n",
+		    name, name);
+	if (parent)
+		strbuf_addf(&ctx->errors,
+			    "Package '%s', required by '%s', not found\n", name,
+			    parent);
+	else
+		strbuf_addf(&ctx->errors, "Package '%s' not found\n", name);
+}
+
 static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
-		 pkglist *out, strlist *seen, strlist *stack)
+		 pkglist *out, strlist *seen, strlist *stack, const char *parent)
 {
 	package *p = pkg_load(ctx, dep->name);
 	if (!p) {
-		strbuf_addf(&ctx->errors,
-			    "Package '%s' was not found in the pkg-config search path\n",
-			    dep->name);
+		pkg_err_not_found(ctx, dep->name, parent);
 		return -1;
 	}
 	if (dep->op != CMP_ANY &&
@@ -511,7 +524,7 @@ static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
 						   &sub);
 			for (size_t i = np; i-- > 0;)
 				if (visit(ctx, &sub[i], false, depth + 1, out,
-					  seen, stack) != 0)
+					  seen, stack, p->key) != 0)
 					rc = -1;
 			pkg_deps_free(sub, np);
 		}
@@ -519,7 +532,7 @@ static int visit(pkg_ctx *ctx, const pkg_dep *dep, bool pub_path, int depth,
 		size_t nsub = pkg_parse_deps(p->requires_str, &sub);
 		for (size_t i = nsub; i-- > 0;)
 			if (visit(ctx, &sub[i], pub_path, depth + 1, out, seen,
-				  stack) != 0)
+				  stack, p->key) != 0)
 				rc = -1;
 		pkg_deps_free(sub, nsub);
 	}
@@ -560,7 +573,8 @@ int pkg_closure(pkg_ctx *ctx, const pkg_dep *roots, size_t nroots, pkglist *out)
 	strlist_init(&seen);
 	strlist_init(&stack);
 	for (size_t i = 0; i < nroots; i++)
-		if (visit(ctx, &roots[i], true, 1, out, &seen, &stack) != 0)
+		if (visit(ctx, &roots[i], true, 1, out, &seen, &stack,
+			  nullptr) != 0)
 			rc = -1;
 	strlist_free(&seen);
 	strlist_free(&stack);

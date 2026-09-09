@@ -1,0 +1,7 @@
+prefix=${pcfiledir}/../..
+libdir=${prefix}/lib
+
+Name: linked
+Description: Package reached through a symlink
+Version: 1.0.0
+Libs: -L${libdir} -llinked

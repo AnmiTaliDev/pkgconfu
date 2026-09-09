@@ -51,7 +51,7 @@ rc_is() {
 	fi
 }
 
-out_is "version" "0.4.0" "$BIN" --version
+out_is "version" "0.5.0" "$BIN" --version
 out_is "modversion" "1.4.2" "$BIN" --modversion foo
 out_is "modversion multi" "1.4.2
 2.3.0" "$BIN" --modversion foo bar
@@ -138,6 +138,24 @@ baz" "$BIN" --print-requires quirks
 out_is "trailing comment stripped from variable" "/opt/quirks/lib" \
 	"$BIN" --variable=libdir quirks
 out_is "virtual pkg-config exists" "0.29.2" "$BIN" --modversion pkg-config
+
+out_is "path prints package file location" "$FIX/foo.pc" \
+	"$BIN" --path foo
+out_is "path resolves only named packages" "$FIX/foo.pc" \
+	"$BIN" --path "foo >= 1.0"
+
+out_is "not-found error matches pkg-config wording" \
+	"Package nope was not found in the pkg-config search path.
+Perhaps you should add the directory containing \`nope.pc'
+to the PKG_CONFIG_PATH environment variable
+Package 'nope' not found" \
+	sh -c '"$0" --cflags nope 2>&1' "$BIN"
+out_is "required-by error names the dependent" \
+	"Package 'missingdep', required by 'wantsmissing', not found" \
+	sh -c '"$0" --cflags wantsmissing 2>&1 | tail -1' "$BIN"
+
+out_is "pcfiledir resolved through symlink" \
+	"-L$FIX/real/../../lib -llinked" "$BIN" --libs linked
 
 out_is "default system lib dir stripped" "" \
 	"$BIN" --libs-only-L sysroot-lib
